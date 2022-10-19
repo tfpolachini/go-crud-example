@@ -14,54 +14,82 @@ type ProductRepositoryInterface interface {
 	FindById(id string) (*Product, error)
 }
 
-const (
-	ENABLED  = "ENABLED"
-	DISABLED = "DISABLED"
-)
-
 type Product struct {
-	ID        string
-	Name      string
-	Status    string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	id        string
+	name      string
+	status    Status
+	createdAt time.Time
+	updatedAt time.Time
+}
+
+func UnmarshalProductFromDatabase(id, name string, status Status, createdAt, updatedAt time.Time) (*Product, error) {
+	return &Product{
+		id:        id,
+		name:      name,
+		status:    status,
+		createdAt: createdAt,
+		updatedAt: updatedAt,
+	}, nil
 }
 
 func NewProduct(name string) (*Product, error) {
-	product := Product{
-		Name: name,
+	if name == "" {
+		return nil, errors.New("product name can not be empty")
 	}
 
-	product.ID = uuid.NewV4().String()
-	product.Status = ENABLED
-	product.CreatedAt = time.Now()
-	product.UpdatedAt = time.Now()
+	product := Product{
+		name: name,
+	}
+
+	product.id = uuid.NewV4().String()
+	product.status = ENABLED
+	product.createdAt = time.Now()
+	product.updatedAt = time.Now()
 
 	return &product, nil
 }
 
-func (p *Product) Edit(name string) (*Product, error) {
+func (p Product) ID() string {
+	return p.id
+}
 
-	if p.Status == DISABLED {
+func (p Product) Name() string {
+	return p.name
+}
+
+func (p Product) Status() Status {
+	return p.status
+}
+
+func (p Product) CreatedAt() time.Time {
+	return p.createdAt
+}
+
+func (p Product) UpdatedAt() time.Time {
+	return p.updatedAt
+}
+
+func (p *Product) Edit(name string) (*Product, error) {
+	if p.status == DISABLED {
 		return p, errors.New("you can't edit a disabled product")
 	}
 
-	p.Name = name
-	p.UpdatedAt = time.Now()
+	p.name = name
+	p.updatedAt = time.Now()
 
 	return p, nil
 }
 
 func (p *Product) Enable() *Product {
-	p.Status = ENABLED
-	p.UpdatedAt = time.Now()
+	p.status = ENABLED
+	p.updatedAt = time.Now()
 
 	return p
 }
 
 func (p *Product) Disable() *Product {
-	p.Status = DISABLED
-	p.UpdatedAt = time.Now()
+	p.status = DISABLED
+	p.updatedAt = time.Now()
 
 	return p
 }
