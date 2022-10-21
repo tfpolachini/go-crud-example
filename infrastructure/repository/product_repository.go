@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"time"
 
 	"github.com/tfpolachini/go-crud-example/domain/model"
 )
@@ -14,7 +15,7 @@ func NewProductRepository(db *sql.DB) *ProductRepository {
 	return &ProductRepository{db}
 }
 
-func (r *ProductRepository) Save(product *model.Product) (*model.Product, error) {
+func (r *ProductRepository) Save(p *model.Product) (*model.Product, error) {
 	stmt, err := r.db.Prepare(`INSERT INTO products(id, name, status, created_at, updated_at) VALUES(?, ?, ?, ?, ?)`)
 	if err != nil {
 		return nil, err
@@ -22,15 +23,15 @@ func (r *ProductRepository) Save(product *model.Product) (*model.Product, error)
 
 	defer stmt.Close()
 
-	_, err = stmt.Exec(product.ID, product.Name, product.Status, product.CreatedAt, product.UpdatedAt)
+	_, err = stmt.Exec(p.ID(), p.Name(), p.Status().String(), p.CreatedAt(), p.UpdatedAt())
 	if err != nil {
 		return nil, err
 	}
 
-	return r.FindById(product.ID)
+	return r.FindById(p.ID())
 }
 
-func (r *ProductRepository) FindByName(name string) (*model.Product, error) {
+func (r *ProductRepository) FindByName(n string) (*model.Product, error) {
 	stmt, err := r.db.Prepare(`SELECT p.id, p.name, p.status, p.created_at, p.updated_at FROM products p WHERE p.name = ?`)
 	if err != nil {
 		return nil, err
@@ -38,18 +39,29 @@ func (r *ProductRepository) FindByName(name string) (*model.Product, error) {
 
 	defer stmt.Close()
 
-	var product model.Product
+	var id, name, statusStr string
+	var createdAt, updatedAt time.Time
 
-	err = stmt.QueryRow(name).Scan(&product.ID, &product.Name, &product.Status, &product.CreatedAt, &product.UpdatedAt)
+	err = stmt.QueryRow(n).Scan(&id, &name, &statusStr, &createdAt, &updatedAt)
 	if err != nil {
 		return nil, err
 	}
 
-	return &product, nil
+	status, err := model.NewStatusFromString(statusStr)
+	if err != nil {
+		return nil, err
+	}
+
+	p, err := model.UnmarshalProductFromDatabase(id, name, status, createdAt, updatedAt)
+	if err != nil {
+		return nil, err
+	}
+
+	return p, nil
 }
 
-func (r *ProductRepository) CountByName(name string) (int, error) {
-	stmt, err := r.db.Prepare(`SELECT COUNT(*) FROM products WHERE name = ?`)
+func (r *ProductRepository) CountByName(n string) (int, error) {
+	stmt, err := r.db.Prepare(`SELECT COUNT(*) FROM products p WHERE p.name = ?`)
 	if err != nil {
 		return 0, err
 	}
@@ -58,7 +70,7 @@ func (r *ProductRepository) CountByName(name string) (int, error) {
 
 	var count int
 
-	err = stmt.QueryRow(name).Scan(&count)
+	err = stmt.QueryRow(n).Scan(&count)
 	if err == sql.ErrNoRows {
 		return 0, nil
 	}
@@ -71,16 +83,17 @@ func (r *ProductRepository) CountByName(name string) (int, error) {
 }
 
 func (r *ProductRepository) FindById(id string) (*model.Product, error) {
-	var product model.Product
-
-	stmt, err := r.db.Prepare(`SELECT id, name, status, created_at, updated_at FROM products WHERE id = ?`)
+	stmt, err := r.db.Prepare(`SELECT id, name, status, created_at, updated_at FROM products p WHERE p.id = ?`)
 	if err != nil {
 		return nil, err
 	}
 
 	defer stmt.Close()
 
-	err = stmt.QueryRow(id).Scan(&product.ID, &product.Name, &product.Status, &product.CreatedAt, &product.UpdatedAt)
+	var uuid, name, statusStr string
+	var createdAt, updatedAt time.Time
+
+	err = stmt.QueryRow(id).Scan(&uuid, &name, &statusStr, &createdAt, &updatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -89,11 +102,21 @@ func (r *ProductRepository) FindById(id string) (*model.Product, error) {
 		return nil, err
 	}
 
-	return &product, nil
+	status, err := model.NewStatusFromString(statusStr)
+	if err != nil {
+		return nil, err
+	}
+
+	p, err := model.UnmarshalProductFromDatabase(uuid, name, status, createdAt, updatedAt)
+	if err != nil {
+		return nil, err
+	}
+
+	return p, nil
 }
 
 func (r *ProductRepository) CountById(id string) (int, error) {
-	stmt, err := r.db.Prepare(`SELECT COUNT(*) FROM products WHERE id = ?`)
+	stmt, err := r.db.Prepare(`SELECT COUNT(*) FROM products p WHERE p.id = ?`)
 	if err != nil {
 		return 0, err
 	}
